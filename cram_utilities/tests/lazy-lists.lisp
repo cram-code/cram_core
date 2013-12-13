@@ -134,13 +134,13 @@
     (assert-equal '(:elem :elem :elem) list)))
 
 (define-test lazy-dynamic-environment
-  (let ((*foo* nil))
-    (declare (special *foo))
+  (let ((*foo* :initial))
+    (declare (special *foo*))
     (let ((lazy-list
               (with-lazy-list-dynamic-environment
-                  ((*foo* :bar))
+                  ((*foo* :new))
                 (lazy-list ((i 2))
                   (when (> i 0)
                     (cont *foo* (1- i)))))))
-      (assert-eq (lazy-elt lazy-list 0) :bar)
-      (assert-eq (lazy-elt lazy-list 1) :bar))))
+      (assert-eq :initial (lazy-elt lazy-list 0))
+      (assert-eq :initial (lazy-elt lazy-list 1)))))
