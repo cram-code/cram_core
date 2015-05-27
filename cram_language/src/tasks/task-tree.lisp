@@ -185,6 +185,8 @@
                        :run-thread nil
                        :path path)))
               ((executed (code-task code))
+               (evaporate (code-task code))
+               (setf (code-task code) nil)
                (make-task :name name
                           :sexp sexp
                           :function function
@@ -221,9 +223,9 @@
   (mapc (compose #'clear-tasks #'cdr) (task-tree-node-children task-tree-node))
   task-tree-node)
 
-(defun task-tree-node (path)
+(defun task-tree-node (path &optional (node *task-tree*))
   "Returns the task-tree node for path or nil."
-  (labels ((get-tree-node-internal (path &optional (node *task-tree*))
+  (labels ((get-tree-node-internal (path node)
              (let ((child (cdr (assoc (car path) (task-tree-node-children node)
                                       :test #'equal))))
                (cond ((not (cdr path))
@@ -232,7 +234,7 @@
                       nil)
                      (t
                       (get-tree-node-internal (cdr path) child))))))
-    (get-tree-node-internal (reverse path))))
+    (get-tree-node-internal (reverse path) node)))
 
 (defun ensure-tree-node (path &optional (task-tree *task-tree*))
   (labels ((worker (path node walked-path)
@@ -253,7 +255,11 @@
     (worker (reverse path) task-tree nil)))
 
 (defun replace-task-code (sexp function path &optional (task-tree *task-tree*))
-  "Adds a code replacement to a specific task tree node."
+  "Adds a code replacement to a specific task tree node.
+
+(Note: the parameters slot is refilled on each run of the plan with the parameter values actually passed
+to the replaceable function. Changing the values in the parameters slot will have no effect on the plan's
+running.)"
   (let ((node (ensure-tree-node path task-tree)))
     (sb-thread:with-mutex ((task-tree-node-lock node))
       (push (make-code :sexp sexp :function function)
@@ -286,6 +292,54 @@
 ;;; Task tree utilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun is-legal-function-name-p (obj) 
+  "A bit of a hack to support serialization of named functions in task tree nodes.
+
+This is because code replacements will be inserted by named functions, whereas the 
+original replaceable function macros put lambda expressions in the task tree. Also
+cl-store can re/store the names of named function and have them rerunnable, but if
+un-named functions are restored they will cause an error.
+  
+WHAT IT SHOULD DO: return true if obj is a named function (example #'+), otherwise 
+false (example (lambda (&rest args) (+ args))). 
+
+WHAT IT ACTUALLY DOES: get the string representation of obj and counts parantheses
+because valid function names should not contain those."
+  (eql 0
+       (count #\(
+              (format nil "~A" obj))))
+
+(defun clear-code-of-illegal-function-names (code)
+  (if code
+    (setf (code-task code) nil))
+  (if code
+    (if (is-legal-function-name-p (code-function code))
+        code
+        (setf (code-function code) nil))
+    nil))
+
+(defun clear-illegal-function-names-internal (tree)
+  (clear-code-of-illegal-function-names (task-tree-node-code tree))
+  (setf (task-tree-node-code-replacements tree) 
+        (mapcar #'clear-code-of-illegal-function-names (task-tree-node-code-replacements tree)))
+  (setf (task-tree-node-children tree) 
+        (mapcar (lambda (child-spec)
+                        (cons (car child-spec) (clear-illegal-function-names-internal (cdr child-spec)))) 
+                (task-tree-node-children tree)))
+  tree)
+
+(defun clear-illegal-function-names (tree)
+  "Checks FUNCTION slots in CODE and CODE-TASK slots. If the function
+object is a reference to an unnamed function, it is set to nil instead.
+
+This is to allow serialization of task trees to restore code-replacements.
+cl-store can't serialize something like (lambda (&rest args) &body), but
+can serialize something like #'some-function, including giving the tree
+the ability to call that function when needed."
+;;  TODO: perhaps define a deep copy function for task trees, so that the
+;;parameter of this function isn't changed by its operation.
+       (clear-illegal-function-names-internal tree))
+
 ;;;
 ;;; STALE TASK TREE NODES
 ;;;
@@ -309,7 +363,7 @@
   "Returns a copy of the task tree which contains only nodes that satisfy
    `predicate'. CAVEAT: If a node does not satisfy `predicate' then none of
    its descendants will appear in the filtered tre, even if they satisfy
-   `preidacte'. Assume that the root saisfies `predicate', otherwise there
+   `predicate'. Assume that the root satisfies `predicate', otherwise there
    would be no tree to return."
   (assert (funcall predicate tree))
   ;; We assume the task object has no reference to the task tree nodes (which

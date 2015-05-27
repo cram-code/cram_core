@@ -37,7 +37,10 @@
   "Indicates if the debugger should be entered at the location where a
   common lisp error is raised.")
 
-(define-condition plan-failure (serious-condition) ()
+(define-condition plan-failure (serious-condition) 
+  ((code-path :initarg :code-path
+              :reader plan-failure/get-code-path
+              :initform nil))
   (:documentation
    "Condition which denotes a plan failure."))
 
@@ -100,16 +103,20 @@
          (signal condition))))))
 
 (defun fail (&rest args)
+  "Function to generate a fail condition which includes the current code path among 
+its member data if (car args) is of typep symbol."
   (if (null args)
-      (%fail "Plan failure." nil)
-      (%fail (car args) (cdr args))))
+      (%fail 'plan-failure (list :code-path *current-path*))
+      (if (typep (car args) 'condition)
+          (%fail (car args) (cdr args))
+          (%fail (car args) (append (cdr args) `(:code-path ,*current-path*))))))
 
 (cut:define-hook cram-language::on-with-failure-handling-begin (clauses))
 (cut:define-hook cram-language::on-with-failure-handling-end (id))
 (cut:define-hook cram-language::on-with-failure-handling-handled (id))
 (cut:define-hook cram-language::on-with-failure-handling-rethrown (id))
 
-(defmacro with-failure-handling (clauses &body body)
+(defmacro with-failure-handling-base (clauses &body body)
   "Macro that replaces handler-case in cram-language. This is
 necessary because error handling does not work across multiple
 threads. When an error is signaled, it is put into an envelope to
@@ -119,12 +126,12 @@ this envelope must also be taken into account.
 We also need a mechanism to retry since errors can be caused by plan
 execution and the environment is highly non-deterministic. Therefore,
 it is possible to use the function `retry' that is lexically bound
-within with-failure-handling and causes a re-execution of the body.
+within with-failure-handling-base and causes a re-execution of the body.
 
 When an error is unhandled, it is passed up to the next failure
 handling form (exactly like handler-bind). Errors are handled by
 invoking the retry function or by doing a non-local exit. Note that
-with-failure-handling implicitly creates an unnamed block,
+with-failure-handling-base implicitly creates an unnamed block,
 i.e. `return' can be used."
   (with-gensyms (wfh-block-name)
     (let* ((clauses
@@ -141,14 +148,16 @@ i.e. `return' can be used."
              (loop for clause in clauses
                    collecting (cons (car clause)
                                     (gensym (symbol-name (car clause)))))))
-      `(let ((log-id (first (cram-language::on-with-failure-handling-begin
+      `(let ((*retry-path* *current-path*) (log-id (first (cram-language::on-with-failure-handling-begin
                              (list ,@(mapcar (lambda (clause)
                                                (write-to-string (car clause)))
                                              clauses))))))
+         (declare (special *retry-path*))
          (unwind-protect
               (block nil
                 (tagbody ,wfh-block-name
                    (flet ((retry ()
+                            (if (and (boundp *reset-on-retry*) *reset-on-retry*) (clear-tasks (task-tree-node *retry-path*)) nil)
                             (go ,wfh-block-name)))
                      (declare (ignorable (function retry)))
                      (flet ,(mapcar (lambda (clause)
@@ -182,6 +191,45 @@ i.e. `return' can be used."
                                       clauses))
                          (return (progn ,@body)))))))
            (cram-language::on-with-failure-handling-end log-id))))))
+
+(defmacro with-failure-handling (clauses &body body)
+  "Macro that replaces handler-case in cram-language. This is
+necessary because error handling does not work across multiple
+threads. When an error is signaled, it is put into an envelope to
+avoid invocation of the debugger multiple times. When handling errors,
+this envelope must also be taken into account.
+
+We also need a mechanism to retry since errors can be caused by plan
+execution and the environment is highly non-deterministic. Therefore,
+it is possible to use the function `retry' that is lexically bound
+within with-failure-handling and causes a re-execution of the body.
+
+When an error is unhandled, it is passed up to the next failure
+handling form (exactly like handler-bind). Errors are handled by
+invoking the retry function or by doing a non-local exit. Note that
+with-failure-handling implicitly creates an unnamed block,
+i.e. `return' can be used.
+
+NOTE: currently calls with-failure-handling-base with *reset-on-retry* set to nil.
+This is the default CRAM behavior: retry will simply run the body again, and leave
+the task tree intact."
+  `(let ((*reset-on-retry* nil))
+     (declare (special *reset-on-retry*))
+     (with-failure-handling-base ,clauses ,@body)))
+
+(defmacro with-transformative-failure-handling (clauses &body body)
+  "Version of with-failure-handling that enables plan transformation as a means of error handling. 
+See with-failure-handling for the CRAM basic approach to failure handling and its reasons.
+
+NOTE: calls with-failure-handling-base with *reset-on-retry* set to T.
+This is the only difference to the with-failure-handling case, and results
+in the task tree resetting from the node corresponding to body downwards
+to the leaves. The clauses are assumed to transform the plan in order to
+handle failure; the task tree reset is so that the transformations are
+guaranteed to be run."
+  `(let ((*reset-on-retry* T))
+     (declare (special *reset-on-retry*))
+     (with-failure-handling-base ,clauses ,@body)))
 
 (defmacro with-retry-counters (counter-definitions &body body)
   "Lexically binds all counters in `counter-definitions' to the intial

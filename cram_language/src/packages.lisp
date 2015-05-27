@@ -149,7 +149,7 @@
            #:fail #:on-fail
            #:simple-plan-failure
            #:plan-failure
-           #:with-failure-handling #:retry
+           #:with-failure-handling #:with-transformative-failure-handling #:retry
            #:with-retry-counters #:do-retry #:reset-counter #:get-counter
            #:common-lisp-error-envelope
            #:envelop-error
@@ -171,6 +171,7 @@
            #:with-task-tree-node
            #:make-task-tree-node
            #:replaceable-function
+           #:replace-task-code
            #:make-task
            #:sub-task
            #:task
@@ -222,6 +223,8 @@
            #:log-enable
            #:log-disable
            #:log-set
+           ;; task tree utils
+           #:clear-illegal-function-names
            ;; tasks
            #:name
            #:*save-tasks*

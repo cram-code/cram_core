@@ -79,4 +79,7 @@
    #:auto-tracing-enabled
    #:set-auto-tracing-directory
    #:setup-auto-tracing
+   ;; task tree serialization
+   #:store-tree
+   #:restore-tree
    ))

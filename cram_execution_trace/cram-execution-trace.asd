@@ -26,6 +26,7 @@
      (:file "offline-task" :depends-on ("package"))
      (:file "episode-knowledge-backend" :depends-on ("package" "episode-knowledge" "offline-task"))
      (:file "serialize" :depends-on ("package" "episode-knowledge" "episode-knowledge-backend"))
+     (:file "task-tree-serialize")
      (:file "interface" :depends-on ("package" "episode-knowledge" "serialize"))
      (:module "episode-knowledge"
               :depends-on ("package" "utils")
