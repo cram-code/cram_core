@@ -33,6 +33,9 @@
   (:export define-projection-environment
            define-special-projection-variable
            with-projection-environment *projection-environment*
+           with-transformative-tryouts
+           projection-ended
+           projection-ended/get-projection-outcome
            clock-time clock-wait
            linear-clock partially-ordered-clock
            partially-ordered-clock-enabled

@@ -166,3 +166,40 @@ variable according to CPL:DEFINE-TASK-VARIABLE."
                 :format-control "Cannot find projection environment `~a'."
                 :format-arguments (list ',name)))
        (execute-in-projection-environment environment #'body-function))))
+
+(define-condition projection-ended (simple-condition) 
+  ((projection-outcome :initarg :projection-outcome
+                       :reader projection-ended/get-projection-outcome
+                       :initform nil))
+  (:documentation
+   "Condition which denotes that a projection run has finished, used in the with-transformative-tryouts macro."))
+
+(defmacro with-transformative-tryouts (projection-environment-name transformation-clause &body body)
+"Macro to run BODY in a projection environment, return to code that will judge projection results 
+and transform BODY or rerun it outside the projection environment. Returns after a run outside 
+projection. Must be called inside a CRAM-FUNCTION or TOPLEVEL-CRAM-FUNCTION.
+
+Parameters: 
+  projection-environment-name: symbol or string naming an existing projection environment
+  transformation-clause: a clause to be invoked after the projection environment returns
+  body: code to run.
+
+Defines variables:
+  cpl-impl:*in-projection-environment*: should be T or NIL. Set to NIL to have the next run of BODY
+outside projection.
+  cpl-impl:*projection-signal-data*: a signal variable containing the result of projection. You can
+access the results with (cram-projection:projection-ended/get-projection-outcome cpl-impl:*projection-signal-data*).
+
+Other effects:
+
+  Task tree will contain only nodes from the final, outside of projection run."
+  `(let* ((cpl-impl:*in-projection-environment* T))
+     (declare (special cpl-impl:*in-projection-environment*))
+     (cpl-impl:with-transformative-failure-handling 
+       ((projection-ended (cpl-impl:*projection-signal-data*) ,transformation-clause))
+       (if cpl-impl:*in-projection-environment*
+         (let* ((projection-outcome (with-projection-environment ,projection-environment-name
+                                                                ,@body))
+               (projection-ended-signal (make-condition 'projection-ended :projection-outcome projection-outcome)))
+               (signal projection-ended-signal))
+         (progn ,@body)))))

@@ -42,6 +42,9 @@
 
 (defvar *synchronous-events* t "Indicates if we want to use synchronized events")
 
+(defvar *in-projection-environment* nil "Used by the with-transformative-tryouts macro to identify whether a projection environment is active for the current run.")
+(defvar *projection-signal-data* nil "Used by the with-transformative-tryouts macro to contain results from a run in a projection environment.")
+
 (defclass abstract-task ()
   ((name
     :reader task-name

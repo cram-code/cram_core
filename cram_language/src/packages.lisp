@@ -187,6 +187,8 @@
            #:goal-task-tree-node-pattern
            #:goal-task-tree-node-parameter-bindings
            #:goal-task-tree-node-goal
+           #:*in-projection-environment*
+           #:*projection-signal-data*
            ;; base.lisp
            #:top-level #:seq #:par #:tag #:with-tags #:with-task-suspended
            #:par-loop
