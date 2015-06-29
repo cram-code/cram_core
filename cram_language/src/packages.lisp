@@ -189,6 +189,7 @@
            #:goal-task-tree-node-goal
            #:*in-projection-environment*
            #:*projection-signal-data*
+           #:*retry-path*
            ;; base.lisp
            #:top-level #:seq #:par #:tag #:with-tags #:with-task-suspended
            #:par-loop

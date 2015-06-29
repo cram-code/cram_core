@@ -37,6 +37,8 @@
   "Indicates if the debugger should be entered at the location where a
   common lisp error is raised.")
 
+(defvar *retry-path* nil "Path variable used by the with-failure-handling and with-transformative-failure-handling macros. It denotes the path of the macros' BODY inside the task tree.")
+
 (define-condition plan-failure (serious-condition) 
   ((code-path :initarg :code-path
               :reader plan-failure/get-code-path
