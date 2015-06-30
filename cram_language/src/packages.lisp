@@ -93,6 +93,8 @@
            ;; fluent.lisp
            #:fluent
            #:value-fluent
+           #:latch-fluent
+           #:setup-latch-fluent
            #:value
            #:peek-value
            #:wait-for

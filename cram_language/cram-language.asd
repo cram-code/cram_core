@@ -40,6 +40,7 @@
       :components
       ((:file "fluent")
        (:file "value-fluent" :depends-on ("fluent"))
+       (:file "latch-fluent" :depends-on ("fluent"))
        (:file "fluent-net" :depends-on ("fluent"))
        (:file "pulse-fluent" :depends-on ("fluent"))))
      ;; WALKER
