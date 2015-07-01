@@ -95,6 +95,7 @@
            #:value-fluent
            #:latch-fluent
            #:setup-latch-fluent
+           #:setup-accumulator-fluent
            #:value
            #:peek-value
            #:wait-for
