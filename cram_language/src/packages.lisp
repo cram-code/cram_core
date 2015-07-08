@@ -152,6 +152,7 @@
            #:fail #:on-fail
            #:simple-plan-failure
            #:plan-failure
+           #:plan-failure/get-code-path
            #:with-failure-handling #:with-transformative-failure-handling #:retry
            #:with-retry-counters #:do-retry #:reset-counter #:get-counter
            #:common-lisp-error-envelope
@@ -175,6 +176,7 @@
            #:make-task-tree-node
            #:replaceable-function
            #:replace-task-code
+           #:get-ptr-parameter
            #:make-task
            #:sub-task
            #:task
@@ -204,7 +206,7 @@
            ;; plans.lisp
            #:on-def-top-level-plan-hook
            #:def-top-level-plan #:get-top-level-task-tree #:def-plan
-           #:def-cram-function #:def-top-level-cram-function
+           #:def-cram-function #:def-top-level-cram-function #:def-ptr-cram-function
            ;; goals.lisp
            #:declare-goal #:def-goal #:goal #:register-goal #:goal-context
            #:succeed #:describe-goal))

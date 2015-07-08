@@ -45,7 +45,8 @@
   sexp
   function
   task
-  parameters)
+  parameters
+  ptr-parameter)
 
 (defstruct task-tree-node
   (code nil)
@@ -99,10 +100,10 @@
                                   (path-part
                                    (error "Path parameter is required."))
                                   (name "WITH-TASK-TREE-NODE")
-                                  sexp lambda-list parameters
+                                  sexp lambda-list parameters ptr-parameter
                                   log-parameters log-pattern)
                                &body body)
-  "Executes a body under a specific path. Sexp, lambda-list and parameters are optional."
+  "Executes a body under a specific path. Sexp, lambda-list, ptr-parameter and parameters are optional."
   (with-gensyms (task)
     `(let* ((*current-path* (cons ,path-part *current-path*))
             (*current-task-tree-node* (ensure-tree-node *current-path*)))
@@ -116,6 +117,7 @@
                  (let ((,task (make-task
                                :name ',(gensym (format nil "[~a]-" name))
                                :sexp ',(or sexp body)
+                               :ptr-parameter ,ptr-parameter
                                :function (lambda ,lambda-list
                                            ,@body)
                                :parameters ,parameters)))
@@ -140,6 +142,31 @@
                          :parameters ,parameters)
      ,@body))
 
+(defmacro replaceable-ptr-function (name lambda-list parameters path-part ptr-parameter
+                                &body body)
+  "Besides the replacement of simple code parts defined with 'with-task-tree-node',
+   it is necessary to also pass parameters to the replaceable code
+   parts. For that, replaceable functions can be defined. They are not
+   real functions, i.e. they do change any symbol-function or change
+   the lexical environment. 'name' is used to mark such functions in
+   the code-sexp. More specifically, the sexp is built like follows:
+   `(replaceable-function ,name ,lambda-list ,@body).
+   The 'parameters' parameter contains the values to call the function with.
+
+   ptr-parameter: its initial value gets stored in the task tree, and thereafter 
+   it is from the task tree that its value is retrieved when running the cram function. 
+   This has two consequences:
+   
+     - it should only be used to send 'compile-time' values to the cram function OR
+     - it can be used to send values tweaked by plan transformation."
+  `(with-task-tree-node (:path-part ,path-part
+                         :name ,(format nil "REPLACEABLE-FUNCTION-~a" name)
+                         :sexp `(replaceable-function ,',name ,',lambda-list . ,',body)
+                         :lambda-list ,lambda-list
+                         :ptr-parameter ,ptr-parameter
+                         :parameters ,parameters)
+     ,@body))
+
 (defun execute-task-tree-node (node)
   (let ((code (task-tree-node-effective-code node)))
     (assert code)
@@ -159,6 +186,12 @@
         (car replacements)
         (task-tree-node-code node))))
 
+(defun get-ptr-parameter ()
+  "Return the currently effective ptr-parameter for the current node.
+   The currently effective ptr-parameter is in the car of code-replacements
+   or, if there are no code-replacements, in the code of the node."
+  (code-ptr-parameter (task-tree-node-effective-code (task-tree-node *current-path*))))
+
 (defun path-next-iteration (path-part)
   (let ((iterations-spec (member :call path-part)))
     (if iterations-spec
@@ -169,9 +202,10 @@
                        (sexp nil) 
                        (function nil)
                        (path *current-path*)
+                       (ptr-parameter nil)
                        (parameters nil))
   "Returns a runnable task for the path"
-  (let ((node (register-task-code sexp function :path path)))
+  (let ((node (register-task-code sexp function :ptr-parameter ptr-parameter :path path)))
     (sb-thread:with-recursive-lock ((task-tree-node-lock node))
       (let ((code (task-tree-node-effective-code node)))
         (cond ((not (code-task code))
@@ -190,6 +224,7 @@
                (make-task :name name
                           :sexp sexp
                           :function function
+                          :ptr-parameter ptr-parameter
                           :path `(,(path-next-iteration (car path)) . ,(cdr path))
                           :parameters parameters))
               (t
@@ -254,18 +289,19 @@
                       (worker (cdr path) child current-path))))))
     (worker (reverse path) task-tree nil)))
 
-(defun replace-task-code (sexp function path &optional (task-tree *task-tree*))
+(defun replace-task-code (sexp function path &key (ptr-parameter nil) (task-tree *task-tree*))
   "Adds a code replacement to a specific task tree node.
 
 (Note: the parameters slot is refilled on each run of the plan with the parameter values actually passed
 to the replaceable function. Changing the values in the parameters slot will have no effect on the plan's
-running.)"
+running. Use the ptr-parameter slot when you want plan transformation to supply parameters to functions.)"
   (let ((node (ensure-tree-node path task-tree)))
     (sb-thread:with-mutex ((task-tree-node-lock node))
-      (push (make-code :sexp sexp :function function)
+      (push (make-code :sexp sexp :function function :ptr-parameter ptr-parameter)
             (task-tree-node-code-replacements node)))))
 
 (defun register-task-code (sexp function &key
+                           (ptr-parameter nil)
                            (path *current-path*) (task-tree *task-tree*)
                            (replace-registered nil))
   "Registers a code as the default code of a specific task tree
@@ -277,11 +313,12 @@ running.)"
         (cond ((or replace-registered
                    (not code))
                (setf (task-tree-node-code node)
-                     (make-code :sexp sexp :function function)))
+                     (make-code :sexp sexp :function function :ptr-parameter ptr-parameter)))
               ((or (not (code-function code))
                    (not (code-sexp code)))
                (setf (code-sexp code) sexp)
                (setf (code-function code) function)
+               (setf (code-ptr-parameter code) ptr-parameter)
                (when (and (code-task code)
                           (not (executed (code-task code))))
                  (setf (slot-value (code-task code) 'thread-fun)

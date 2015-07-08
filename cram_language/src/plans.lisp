@@ -67,7 +67,7 @@
 
 (defmacro def-cram-function (name lambda-list &rest body)
   "Defines a cram function. All functions that should appear in the
-   task-tree must be defined with def-cram-function.
+   task-tree must be defined with def-cram-function (or def-ptr-cram-function).
 
    CAVEAT: See docstring of def-top-level-cram-function."
   (with-gensyms (call-args)
@@ -84,6 +84,56 @@
            (replaceable-function ,name ,lambda-list ,call-args (list ',name)
              (with-tags
                ,@body-forms)))))))
+
+(defmacro def-ptr-cram-function (name lambda-list &rest body)
+  "Defines a cram function. All functions that should appear in the
+   task-tree must be defined with def-cram-function (or def-ptr-cram-function).
+
+   CAVEAT: See docstring of def-top-level-cram-function.
+
+   Difference to def-cram-function: MUST have at least one argument in the lambda
+   list. First argument in lambda list is extracted and passed as ptr-parameter.
+
+   When a ptr-cram-function is first called (there is no corresponding task tree
+   node) then the value of the ptr-parameter slot in the newly created node is
+   set to the value of the first parameter.
+
+   Note that the function defined in &body sees a lambda list from which the
+   ptr-parameter has been removed. As a result, functions that are compatible
+   to replace a ptr-cram-function have lambda lists that are one shorter than
+   the ptr-cram-function. Example:
+
+   (def-ptr-cram-function example-ptr (ptr-param X Y Z) &body)
+
+   (defun compatible-ptr-replacement (X Y Z) &body)
+
+   However, when called inside the plan, supply the ptr-param like so:
+
+   (...
+     (example-ptr \"A value\" X Y Z)
+    ...)
+
+   Since ptr-parameter is not actually passed as a parameter to the forms in
+   &body, it needs to be accessible in another way. This is done by:
+
+   (cpl-impl:get-ptr-parameter)"
+  (with-gensyms (call-args)
+    (multiple-value-bind (body-forms declarations doc-string)
+        (parse-body body :documentation t)
+      (let* ((lambda-list-cdr (cdr lambda-list)))
+        `(progn
+           (eval-when (:load-toplevel)
+             (setf (get ',name 'plan-type) :plan)
+             (setf (get ',name 'plan-lambda-list) ',lambda-list-cdr)
+             (setf (get ',name 'plan-sexp) ',body))
+           (defun ,name (&rest ,call-args)
+             ,doc-string
+             ,@declarations
+             (let* ((inner-call-args (cdr ,call-args))
+                    (ptr-parameter (car ,call-args)))
+               (replaceable-ptr-function ,name ,lambda-list-cdr inner-call-args (list ',name) ptr-parameter
+                 (with-tags
+                   ,@body-forms)))))))))
 
 (defmacro def-plan (name lambda-list &rest body)
   (style-warn 'simple-style-warning
