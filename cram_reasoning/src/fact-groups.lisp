@@ -198,7 +198,7 @@
 (defmacro def-fact-group (fact-group-name extendable-predicates &body facts)
   "Define a group of facts. Predicates already defined by other fact groups
    may only be extended if the corresponding functor ist listed in
-   `extendable-prediactes'."
+   `extendable-predicates'."
   (let ((list-of-facts (gensym "LIST-OF-FACTS-")))
     `(macrolet ((<- (fact-head &body fact-code)
                   `(setf ,',list-of-facts

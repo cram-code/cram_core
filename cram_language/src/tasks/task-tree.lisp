@@ -225,8 +225,6 @@
                        :run-thread nil
                        :path path)))
               ((executed (code-task code))
-               (evaporate (code-task code))
-               (setf (code-task code) nil)
                (make-task :name name
                           :sexp sexp
                           :function function

@@ -160,7 +160,10 @@
            #:*break-on-plan-failures*
            #:*debug-on-lisp-errors*
            ;; ptr-function versions of plan macros
-           #:seq-ptr
+           #:ptr-seq
+           #:ptr-try-in-order
+           #:ptr-with-task-suspended
+           #:ptr-try-each-in-order
            ;; task-tree.lisp
            #:code
            #:code-parameters
