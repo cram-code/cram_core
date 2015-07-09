@@ -56,6 +56,7 @@
      ;; CRAM, The Language
      (:file "language" :depends-on ("packages" "walker" "tasks" "fluents" "logging" "with-policy" "default-policies"))
      (:file "plans" :depends-on ("packages" "tasks"))
+     (:file "ptr-language" :depends-on ("packages" "language" "plans"))
      (:file "goals" :depends-on ("packages" "tasks"))
      (:file "fluent-operators" :depends-on ("packages" "fluents"))
      (:file "swank-indentation" :depends-on ("packages"))))))

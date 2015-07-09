@@ -159,6 +159,8 @@
            #:envelop-error
            #:*break-on-plan-failures*
            #:*debug-on-lisp-errors*
+           ;; ptr-function versions of plan macros
+           #:seq-ptr
            ;; task-tree.lisp
            #:code
            #:code-parameters

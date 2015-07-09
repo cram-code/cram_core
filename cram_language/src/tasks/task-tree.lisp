@@ -100,7 +100,7 @@
                                   (path-part
                                    (error "Path parameter is required."))
                                   (name "WITH-TASK-TREE-NODE")
-                                  sexp lambda-list parameters ptr-parameter
+                                  sexp lambda-list parameters ptr-parameter is-ptr-task
                                   log-parameters log-pattern)
                                &body body)
   "Executes a body under a specific path. Sexp, lambda-list, ptr-parameter and parameters are optional."
@@ -118,12 +118,24 @@
                                :name ',(gensym (format nil "[~a]-" name))
                                :sexp ',(or sexp body)
                                :ptr-parameter ,ptr-parameter
+                               :is-ptr-task ,is-ptr-task
                                :function (lambda ,lambda-list
                                            ,@body)
                                :parameters ,parameters)))
                    (execute ,task)
                    ,task)))
            (cram-language::on-finishing-task-execution log-id))))))
+
+(defmacro replaceable-function-base (name lambda-list parameters path-part ptr-parameter is-ptr-task
+                                &body body)
+  `(with-task-tree-node (:path-part ,path-part
+                         :name ,(format nil "REPLACEABLE-FUNCTION-~a" name)
+                         :sexp `(replaceable-function ,',name ,',lambda-list . ,',body)
+                         :lambda-list ,lambda-list
+                         :is-ptr-task ,is-ptr-task
+                         :ptr-parameter ,ptr-parameter
+                         :parameters ,parameters)
+     ,@body))
 
 (defmacro replaceable-function (name lambda-list parameters path-part
                                 &body body)
@@ -135,14 +147,9 @@
    the code-sexp. More specifically, the sexp is built like follows:
    `(replaceable-function ,name ,lambda-list ,@body).
    The 'parameters' parameter contains the values to call the function with."
-  `(with-task-tree-node (:path-part ,path-part
-                         :name ,(format nil "REPLACEABLE-FUNCTION-~a" name)
-                         :sexp `(replaceable-function ,',name ,',lambda-list . ,',body)
-                         :lambda-list ,lambda-list
-                         :parameters ,parameters)
-     ,@body))
+  `(replaceable-function-base ,name ,lambda-list ,parameters ,path-part nil nil ,@body))
 
-(defmacro replaceable-ptr-function (name lambda-list parameters path-part ptr-parameter
+(defmacro replaceable-ptr-function (ptr-parameter name lambda-list parameters path-part
                                 &body body)
   "Besides the replacement of simple code parts defined with 'with-task-tree-node',
    it is necessary to also pass parameters to the replaceable code
@@ -159,13 +166,7 @@
    
      - it should only be used to send 'compile-time' values to the cram function OR
      - it can be used to send values tweaked by plan transformation."
-  `(with-task-tree-node (:path-part ,path-part
-                         :name ,(format nil "REPLACEABLE-FUNCTION-~a" name)
-                         :sexp `(replaceable-function ,',name ,',lambda-list . ,',body)
-                         :lambda-list ,lambda-list
-                         :ptr-parameter ,ptr-parameter
-                         :parameters ,parameters)
-     ,@body))
+  `(replaceable-function-base ,name ,lambda-list ,parameters ,path-part ,ptr-parameter T ,@body))
 
 (defun execute-task-tree-node (node)
   (let ((code (task-tree-node-effective-code node)))
@@ -203,19 +204,24 @@
                        (function nil)
                        (path *current-path*)
                        (ptr-parameter nil)
+                       (is-ptr-task nil)
                        (parameters nil))
   "Returns a runnable task for the path"
   (let ((node (register-task-code sexp function :ptr-parameter ptr-parameter :path path)))
     (sb-thread:with-recursive-lock ((task-tree-node-lock node))
-      (let ((code (task-tree-node-effective-code node)))
+      (let* ((code (task-tree-node-effective-code node))
+             (parameters-when-ptr (cons (code-ptr-parameter code) (cdr parameters)))
+             (cr-parameters (if is-ptr-task
+                                parameters-when-ptr
+                                parameters)))
         (cond ((not (code-task code))
-               (setf (code-parameters code) parameters)
+               (setf (code-parameters code) cr-parameters)
                (setf (code-task code)
                      (make-instance 'task
                        :name name
                        :thread-fun (lambda ()
                                      (apply (code-function code)
-                                            parameters))
+                                              cr-parameters))
                        :run-thread nil
                        :path path)))
               ((executed (code-task code))
@@ -225,6 +231,7 @@
                           :sexp sexp
                           :function function
                           :ptr-parameter ptr-parameter
+                          :is-ptr-task is-ptr-task
                           :path `(,(path-next-iteration (car path)) . ,(cdr path))
                           :parameters parameters))
               (t
