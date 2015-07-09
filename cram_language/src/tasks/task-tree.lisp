@@ -296,15 +296,19 @@
                       (worker (cdr path) child current-path))))))
     (worker (reverse path) task-tree nil)))
 
-(defun replace-task-code (sexp function path &key (ptr-parameter nil) (task-tree *task-tree*))
+(defun replace-task-code (sexp function path &key (ptr-parameter nil given-ptr-parameter) (task-tree *task-tree*))
   "Adds a code replacement to a specific task tree node.
 
 (Note: the parameters slot is refilled on each run of the plan with the parameter values actually passed
 to the replaceable function. Changing the values in the parameters slot will have no effect on the plan's
 running. Use the ptr-parameter slot when you want plan transformation to supply parameters to functions.)"
-  (let ((node (ensure-tree-node path task-tree)))
+  (let* ((node (ensure-tree-node path task-tree))
+         (old-ptr-parameter (code-ptr-parameter (task-tree-node-effective-code node)))
+         (cr-ptr-parameter (if given-ptr-parameter
+                               ptr-parameter
+                               old-ptr-parameter)))
     (sb-thread:with-mutex ((task-tree-node-lock node))
-      (push (make-code :sexp sexp :function function :ptr-parameter ptr-parameter)
+      (push (make-code :sexp sexp :function function :ptr-parameter cr-ptr-parameter)
             (task-tree-node-code-replacements node)))))
 
 (defun register-task-code (sexp function &key
