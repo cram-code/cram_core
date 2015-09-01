@@ -294,6 +294,12 @@
                       (worker (cdr path) child current-path))))))
     (worker (reverse path) task-tree nil)))
 
+(defun replace-task-ptr-parameter (ptr-parameter path &key (task-tree *task-tree*))
+  (let* ((node (ensure-tree-node path task-tree))
+         (code (task-tree-node-effective-code node)))
+    (sb-thread:with-mutex ((task-tree-node-lock node))
+      (setf (code-ptr-parameter code) ptr-parameter))))
+
 (defun replace-task-code (sexp function path &key (ptr-parameter nil given-ptr-parameter) (task-tree *task-tree*))
   "Adds a code replacement to a specific task tree node.
 

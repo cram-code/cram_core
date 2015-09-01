@@ -160,10 +160,61 @@
            #:*break-on-plan-failures*
            #:*debug-on-lisp-errors*
            ;; ptr-function versions of plan macros
+           #:ptr-failure
+           #:ptr-circular-partial-order
+           #:ptr-malformed-partial-order
+           #:ptr-failure/message
+           #:ptr-failure/cdeps
+           #:ptr-failure/deps-issue
+           #:ptr-tag
+           #:ptr-tag/name
+           #:ptr-tag/fluent-object
+           #:ptr-tag/task-object
+           #:wait-for-ptr-tag
            #:ptr-seq
            #:ptr-try-in-order
+           #:ptr-with-task
            #:ptr-with-task-suspended
            #:ptr-try-each-in-order
+           #:ptr-par
+           #:ptr-pursue
+           #:ptr-try-all
+           #:ptr-par-loop
+           #:ptr-partial-order
+           #:get-dependent-partial-order-tasks
+           #:delete-partial-order-task
+           #:get-deps-result
+           #:function-application
+           #:function-application/task-tag
+           #:function-application/function-object
+           #:function-application/par-list
+           #:function-application-list
+           #:function-application-list/fn-list
+           #:make-fn-app-list
+           #:with-task-ptr-parameter
+           #:with-task-ptr-parameter/function-application
+           #:with-task-ptr-parameter/class
+           #:with-task-ptr-parameter/name
+           #:try-each-ptr-parameter
+           #:try-each-ptr-parameter/task-tag
+           #:try-each-ptr-parameter/function-object
+           #:try-each-ptr-parameter/options-list
+           #:make-try-each-ptr-par
+           #:partial-order-ptr-parameter
+           #:partial-order-ptr-parameter/fn-apps
+           #:partial-order-ptr-parameter/orderings
+           ;; ptr-goals
+           #:fluent-condition-failure
+           #:goal-recipes-failed
+           #:goal-pattern-not-found
+           #:goal-recipe-not-found
+           #:fmp/name
+           #:ptr-declare-goal
+           #:ptr-add-goal-pattern
+           #:ptr-add-goal-recipe
+           #:ptr-adjust-recipe-score
+           #:ptr-remove-recipe
+           #:ptr-clear-patterns
            ;; task-tree.lisp
            #:code
            #:code-parameters
@@ -180,6 +231,7 @@
            #:with-task-tree-node
            #:make-task-tree-node
            #:replaceable-function
+           #:replace-task-ptr-parameter
            #:replace-task-code
            #:get-ptr-parameter
            #:make-task
